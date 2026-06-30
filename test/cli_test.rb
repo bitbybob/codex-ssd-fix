@@ -66,4 +66,17 @@ class CLITest < Minitest::Test
     assert_empty stdout.string
     assert_equal "size-gib must be a positive integer\n", stderr.string
   end
+
+  def test_env_rejects_invalid_mount_point_option
+    stdout = StringIO.new
+    stderr = StringIO.new
+
+    status = CodexSsdFix::CLI.new(stdout: stdout, stderr: stderr).run(
+      ["env", "--mount-point", " "]
+    )
+
+    assert_equal 1, status
+    assert_empty stdout.string
+    assert_equal "mount point must not be blank\n", stderr.string
+  end
 end

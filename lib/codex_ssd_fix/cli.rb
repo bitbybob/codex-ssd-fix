@@ -26,6 +26,8 @@ module CodexSsdFix
         result = Doctor.new.run
         @stdout.write result.output
         result.exit_status
+      when "env"
+        handle_env(argv.drop(1))
       when "guard"
         handle_guard(argv.drop(1))
       when "ramdisk"
@@ -41,6 +43,23 @@ module CodexSsdFix
     end
 
     private
+
+    def handle_env(argv)
+      require "codex_ssd_fix/ramdisk"
+      require "codex_ssd_fix/env_guide"
+
+      config = Ramdisk.build(
+        size_gib: optional_value(argv, "--size-gib"),
+        name: optional_value(argv, "--name"),
+        mount_point: optional_value(argv, "--mount-point")
+      )
+      result = EnvGuide.new(ramdisk: Ramdisk.new(config: config)).run
+      @stdout.write result.output
+      result.exit_status
+    rescue ArgumentError, CommandRunner::Error, Ramdisk::Error => e
+      @stderr.puts e.message
+      1
+    end
 
     def handle_guard(argv)
       action = argv.first
