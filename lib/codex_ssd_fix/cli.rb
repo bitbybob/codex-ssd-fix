@@ -26,6 +26,8 @@ module CodexSsdFix
         result = Doctor.new.run
         @stdout.write result.output
         result.exit_status
+      when "guard"
+        handle_guard(argv.drop(1))
       when *COMMANDS.keys
         @stdout.puts "#{command}: not implemented yet"
         0
@@ -37,6 +39,36 @@ module CodexSsdFix
     end
 
     private
+
+    def handle_guard(argv)
+      action = argv.first
+      unless action == "apply"
+        @stdout.puts "guard: not implemented yet"
+        return 0
+      end
+
+      require "codex_ssd_fix/codex_home"
+      require "codex_ssd_fix/log_guard"
+
+      mode = option_value(argv, "--mode")
+      CodexHome.resolve(argv: argv).then do |codex_home|
+        LogGuard.new(codex_home: codex_home).apply(mode)
+      end
+      @stdout.puts "guard apply: installed #{mode} mode"
+      0
+    rescue ArgumentError, CommandRunner::Error => e
+      @stderr.puts e.message
+      1
+    end
+
+    def option_value(argv, option)
+      argv.each_with_index do |arg, index|
+        return arg.delete_prefix("#{option}=") if arg.start_with?("#{option}=")
+        return argv[index + 1] if arg == option
+      end
+
+      nil
+    end
 
     def print_help
       @stdout.puts <<~USAGE
