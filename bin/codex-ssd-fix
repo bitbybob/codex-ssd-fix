@@ -1,5 +1,7 @@
 #!/usr/bin/env ruby
 
+$LOAD_PATH.unshift File.expand_path("../lib", __dir__)
+
 require "codex_ssd_fix/cli"
 
 exit CodexSsdFix::CLI.new.run(ARGV)
