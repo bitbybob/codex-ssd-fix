@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-repo_url="${CODEX_SSD_FIX_REPO_URL:-https://github.com/bitbybob/codex-ssd-fix.git}"
+repo_url="https://github.com/bitbybob/codex-ssd-fix.git"
 install_dir="${CODEX_SSD_FIX_DIR:-"$HOME/.local/share/codex-ssd-fix"}"
 bin_path="$install_dir/bin/codex-ssd-fix"
 
