@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-repo_url="${CODEX_SSD_FIX_REPO_URL:-}"
+repo_url="${CODEX_SSD_FIX_REPO_URL:-https://github.com/bitbybob/codex-ssd-fix.git}"
 install_dir="${CODEX_SSD_FIX_DIR:-"$HOME/.local/share/codex-ssd-fix"}"
 bin_path="$install_dir/bin/codex-ssd-fix"
 
@@ -48,20 +48,30 @@ require_command sqlite3
 require_command hdiutil
 require_command diskutil
 
-if [ -z "$repo_url" ]; then
-  fail "set CODEX_SSD_FIX_REPO_URL to the git URL for this repository"
+script_path="${BASH_SOURCE[0]}"
+script_dir="$(cd "$(dirname "$script_path")" 2>/dev/null && pwd -P || true)"
+checkout_dir=""
+
+if [ -n "$script_dir" ] && [ -x "$script_dir/../bin/codex-ssd-fix" ]; then
+  checkout_dir="$(cd "$script_dir/.." && pwd -P)"
 fi
 
-say "install dir: $install_dir"
-
-if [ -d "$install_dir/.git" ]; then
-  say "updating existing clone"
-  git -C "$install_dir" pull --ff-only
-elif [ -e "$install_dir" ]; then
-  fail "$install_dir exists but is not a git clone"
+if [ -n "$checkout_dir" ] && [ -z "${CODEX_SSD_FIX_DIR:-}" ]; then
+  install_dir="$checkout_dir"
+  bin_path="$install_dir/bin/codex-ssd-fix"
+  say "using checkout: $install_dir"
 else
-  mkdir -p "$(dirname "$install_dir")"
-  git clone "$repo_url" "$install_dir"
+  say "install dir: $install_dir"
+
+  if [ -d "$install_dir/.git" ]; then
+    say "updating existing clone"
+    git -C "$install_dir" pull --ff-only
+  elif [ -e "$install_dir" ]; then
+    fail "$install_dir exists but is not a git clone"
+  else
+    mkdir -p "$(dirname "$install_dir")"
+    git clone "$repo_url" "$install_dir"
+  fi
 fi
 
 cd "$install_dir"

@@ -4,6 +4,16 @@ Small macOS Ruby CLI for reducing Codex SSD churn without moving durable Codex s
 This will create a ramdisk and also decrease codex internal logging behavior as a fix to:
 https://github.com/openai/codex/issues/28224
 
+## Get Started
+
+Paste this into Terminal:
+
+```sh
+bash -c "$(curl -fsSL https://raw.githubusercontent.com/bitbybob/codex-ssd-fix/main/scripts/setup)"
+```
+
+The script checks dependencies, clones or updates into `~/.local/share/codex-ssd-fix`, runs `doctor`, then asks before applying the trace guard or mounting the RAM disk.
+
 ## Requirements
 
 - macOS
@@ -20,22 +30,13 @@ No install, `bundle install`, package manager, release artifact, or background s
 ruby -Ilib bin/codex-ssd-fix help
 ```
 
-## Guided Setup
+## Clone Setup
 
 From a clone:
 
 ```sh
 ./scripts/setup
 ```
-
-From a published repo, replace the URLs and paste:
-
-```sh
-CODEX_SSD_FIX_REPO_URL=https://github.com/OWNER/codex-ssd-fix.git \
-  bash -c "$(curl -fsSL https://raw.githubusercontent.com/OWNER/codex-ssd-fix/main/scripts/setup)"
-```
-
-The script checks macOS dependencies, clones or updates into `~/.local/share/codex-ssd-fix`, runs `doctor`, then asks before applying the trace guard or mounting the RAM disk.
 
 Commands:
 
