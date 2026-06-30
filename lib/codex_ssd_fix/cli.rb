@@ -42,22 +42,30 @@ module CodexSsdFix
 
     def handle_guard(argv)
       action = argv.first
-      unless action == "apply"
+      unless %w[apply status].include?(action)
         @stdout.puts "guard: not implemented yet"
         return 0
       end
 
       require "codex_ssd_fix/codex_home"
-      require "codex_ssd_fix/log_guard"
+      require "codex_ssd_fix/backup"
+      require "codex_ssd_fix/command_runner"
+      require "codex_ssd_fix/log_guard_status"
+      codex_home = CodexHome.resolve(argv: argv)
 
-      mode = option_value(argv, "--mode")
-      result = CodexHome.resolve(argv: argv).then do |codex_home|
-        LogGuard.new(codex_home: codex_home).apply(mode)
+      if action == "status"
+        result = LogGuardStatus.new(codex_home: codex_home).report
+        @stdout.write result.output
+        return result.exit_status
       end
+
+      require "codex_ssd_fix/log_guard"
+      mode = option_value(argv, "--mode")
+      result = LogGuard.new(codex_home: codex_home).apply(mode)
       @stdout.puts "backup: #{result.backup_path}"
       @stdout.puts "guard apply: installed #{result.mode} mode"
       0
-    rescue ArgumentError, Backup::Error, CommandRunner::Error => e
+    rescue ArgumentError, Backup::Error, CommandRunner::Error, LogGuardStatus::Error => e
       @stderr.puts e.message
       1
     end
