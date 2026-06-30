@@ -9,7 +9,7 @@ https://github.com/openai/codex/issues/28224
 Paste this into Terminal:
 
 ```sh
-bash -c "$(curl -fsSL https://raw.githubusercontent.com/bitbybob/codex-ssd-fix/09632a299fc6458dc32fa42c32c4e4f3374cbeca/scripts/setup)"
+bash -c "$(curl -fsSL https://raw.githubusercontent.com/bitbybob/codex-ssd-fix/main/scripts/setup)"
 ```
 
 The script checks dependencies, clones or updates into `~/.local/share/codex-ssd-fix`, runs `doctor`, then asks before applying the trace guard or mounting the RAM disk.
