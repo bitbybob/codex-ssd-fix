@@ -1,0 +1,5 @@
+#!/usr/bin/env ruby
+
+require "codex_ssd_fix/cli"
+
+exit CodexSsdFix::CLI.new.run(ARGV)
