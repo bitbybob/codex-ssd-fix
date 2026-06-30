@@ -71,7 +71,36 @@ class LogGuardTest < Minitest::Test
     assert_equal "mode must be one of: all, trace", error.message
   end
 
+  def test_mutation_is_not_invoked_when_backup_fails
+    runner = RecordingRunner.new
+    backup = FailingBackup.new
+    guard = CodexSsdFix::LogGuard.new(codex_home: @home, runner: runner, backup: backup)
+
+    error = assert_raises(RuntimeError) { guard.apply("all") }
+
+    assert_equal "backup failed", error.message
+    assert_empty runner.commands
+  end
+
   private
+
+  class RecordingRunner
+    attr_reader :commands
+
+    def initialize
+      @commands = []
+    end
+
+    def run!(argv)
+      @commands << argv
+    end
+  end
+
+  class FailingBackup
+    def create
+      raise "backup failed"
+    end
+  end
 
   def insert_log(level)
     sqlite3(<<~SQL)

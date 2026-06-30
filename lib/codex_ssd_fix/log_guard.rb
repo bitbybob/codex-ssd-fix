@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require "codex_ssd_fix/codex_home"
+require "codex_ssd_fix/backup"
 require "codex_ssd_fix/command_runner"
 
 module CodexSsdFix
@@ -8,16 +9,19 @@ module CodexSsdFix
     ALL_TRIGGER = "codex_ssd_fix_block_log_inserts"
     TRACE_TRIGGER = "codex_ssd_fix_block_trace_logs"
     MODES = %w[all trace].freeze
+    ApplyResult = Struct.new(:mode, :backup_path, keyword_init: true)
 
-    def initialize(codex_home:, runner: CommandRunner.new)
+    def initialize(codex_home:, runner: CommandRunner.new, backup: Backup.new(codex_home: codex_home))
       @codex_home = codex_home
       @runner = runner
+      @backup = backup
     end
 
     def apply(mode)
       mode = normalize_mode(mode)
+      backup_result = @backup.create
       @runner.run!(["sqlite3", @codex_home.database_path, apply_sql(mode)])
-      mode
+      ApplyResult.new(mode: mode, backup_path: backup_result.path)
     end
 
     def apply_sql(mode)

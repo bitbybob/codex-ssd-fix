@@ -51,12 +51,13 @@ module CodexSsdFix
       require "codex_ssd_fix/log_guard"
 
       mode = option_value(argv, "--mode")
-      CodexHome.resolve(argv: argv).then do |codex_home|
+      result = CodexHome.resolve(argv: argv).then do |codex_home|
         LogGuard.new(codex_home: codex_home).apply(mode)
       end
-      @stdout.puts "guard apply: installed #{mode} mode"
+      @stdout.puts "backup: #{result.backup_path}"
+      @stdout.puts "guard apply: installed #{result.mode} mode"
       0
-    rescue ArgumentError, CommandRunner::Error => e
+    rescue ArgumentError, Backup::Error, CommandRunner::Error => e
       @stderr.puts e.message
       1
     end
