@@ -47,11 +47,11 @@ class CLITest < Minitest::Test
     stdout = StringIO.new
     stderr = StringIO.new
 
-    status = CodexSsdFix::CLI.new(stdout: stdout, stderr: stderr).run(["ramdisk", "mount"])
+    status = CodexSsdFix::CLI.new(stdout: stdout, stderr: stderr).run(["ramdisk", "status"])
 
     assert_equal 0, status
     assert_empty stderr.string
-    assert_equal "ramdisk mount: not implemented yet\n", stdout.string
+    assert_equal "ramdisk status: not implemented yet\n", stdout.string
   end
 
   def test_ramdisk_mount_rejects_missing_size_value

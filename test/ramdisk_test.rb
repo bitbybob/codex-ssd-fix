@@ -48,4 +48,97 @@ class RamdiskTest < Minitest::Test
     assert_raises(ArgumentError) { CodexSsdFix::Ramdisk.build(name: " ") }
     assert_raises(ArgumentError) { CodexSsdFix::Ramdisk.build(mount_point: " ") }
   end
+
+  def test_mount_uses_argv_commands_and_creates_scratch_layout
+    config = CodexSsdFix::Ramdisk.build(size_gib: "2")
+    runner = RecordingRunner.new(stdout: "/dev/disk9\tApple_partition_scheme\n")
+    filesystem = FakeFilesystem.new(directory: false)
+    fileutils = RecordingFileUtils.new
+
+    result = CodexSsdFix::Ramdisk.new(
+      config: config,
+      runner: runner,
+      filesystem: filesystem,
+      fileutils: fileutils
+    ).mount
+
+    assert result.mounted?
+    assert_equal "/dev/disk9", result.device
+    assert_equal [
+      ["hdiutil", "attach", "-nomount", "ram://4194304"],
+      ["diskutil", "erasevolume", "HFS+", "CodexRAMFix", "/dev/disk9"]
+    ], runner.commands
+    assert_equal [config.scratch_paths], fileutils.mkdir_p_calls
+  end
+
+  def test_mount_treats_existing_mount_path_idempotently
+    config = CodexSsdFix::Ramdisk.build
+    runner = RecordingRunner.new(stdout: "")
+    filesystem = FakeFilesystem.new(directory: true)
+    fileutils = RecordingFileUtils.new
+
+    result = CodexSsdFix::Ramdisk.new(
+      config: config,
+      runner: runner,
+      filesystem: filesystem,
+      fileutils: fileutils
+    ).mount
+
+    refute result.mounted?
+    assert_nil result.device
+    assert_empty runner.commands
+    assert_equal [config.scratch_paths], fileutils.mkdir_p_calls
+  end
+
+  def test_parse_device_handles_spaces_and_partition_suffixes
+    output = "created disk image\n   /dev/disk12s1    Apple_HFS   CodexRAMFix\n"
+
+    assert_equal "/dev/disk12s1", CodexSsdFix::Ramdisk.parse_device(output)
+  end
+
+  def test_parse_device_rejects_unrecognized_output
+    error = assert_raises(CodexSsdFix::Ramdisk::Error) do
+      CodexSsdFix::Ramdisk.parse_device("no device here")
+    end
+
+    assert_equal "could not parse RAM disk device from hdiutil output", error.message
+  end
+
+  class RecordingRunner
+    attr_reader :commands
+
+    Result = Struct.new(:stdout)
+
+    def initialize(stdout:)
+      @stdout = stdout
+      @commands = []
+    end
+
+    def run!(argv)
+      @commands << argv
+      Result.new(@stdout)
+    end
+  end
+
+  class FakeFilesystem
+    def initialize(directory:)
+      @directory = directory
+    end
+
+    def directory?(_path)
+      @directory
+    end
+  end
+
+  class RecordingFileUtils
+    attr_reader :mkdir_p_calls
+
+    def initialize
+      @mkdir_p_calls = []
+    end
+
+    def mkdir_p(paths)
+      @mkdir_p_calls << paths
+    end
+  end
 end

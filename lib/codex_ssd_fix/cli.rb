@@ -97,16 +97,23 @@ module CodexSsdFix
 
       if action == "mount"
         require "codex_ssd_fix/ramdisk"
-        Ramdisk.build(
+        config = Ramdisk.build(
           size_gib: optional_value(argv, "--size-gib"),
           name: optional_value(argv, "--name"),
           mount_point: optional_value(argv, "--mount-point")
         )
+        result = Ramdisk.new(config: config).mount
+        @stdout.puts "ramdisk mount: #{result.mounted? ? "mounted" : "already mounted"}"
+        @stdout.puts "mount point: #{result.config.mount_point}"
+        @stdout.puts "device: #{result.device}" if result.device
+        @stdout.puts "scratch root: #{result.config.scratch_root}"
+        result.scratch_paths.each { |path| @stdout.puts "scratch path: #{path}" }
+        return 0
       end
 
       @stdout.puts "ramdisk #{action}: not implemented yet"
       0
-    rescue ArgumentError => e
+    rescue ArgumentError, CommandRunner::Error, Ramdisk::Error => e
       @stderr.puts e.message
       1
     end
