@@ -21,6 +21,11 @@ module CodexSsdFix
       when "help", "-h", "--help"
         print_help
         0
+      when "doctor"
+        require "codex_ssd_fix/doctor"
+        result = Doctor.new.run
+        @stdout.write result.output
+        result.exit_status
       when *COMMANDS.keys
         @stdout.puts "#{command}: not implemented yet"
         0
