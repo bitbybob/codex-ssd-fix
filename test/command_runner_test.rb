@@ -50,6 +50,29 @@ class CommandRunnerTest < Minitest::Test
     assert_equal "sqlite3 failed with exit status 2: missing file", error.message
   end
 
+  def test_error_message_uses_first_nonempty_stderr_line_only
+    runner = CodexSsdFix::CommandRunner.new(
+      capture3: ->(_argv) { ["", "\nfirst failure\nENV=secret\n", Status.new(1)] },
+      clock: FakeClock.new(1.0, 1.0)
+    )
+
+    result = runner.run(["hdiutil", "attach"])
+
+    assert_equal "hdiutil failed with exit status 1: first failure", result.error_message
+  end
+
+  def test_error_message_caps_long_stderr_line
+    runner = CodexSsdFix::CommandRunner.new(
+      capture3: ->(_argv) { ["", "#{"x" * 300}\n", Status.new(1)] },
+      clock: FakeClock.new(1.0, 1.0)
+    )
+
+    result = runner.run(["hdiutil", "attach"])
+
+    assert_equal 240, result.error_message.split(": ", 2).last.length
+    assert result.error_message.end_with?("...")
+  end
+
   def test_argv_array_preserves_paths_containing_spaces
     captured_argv = nil
     runner = CodexSsdFix::CommandRunner.new(

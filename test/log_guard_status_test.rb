@@ -45,6 +45,35 @@ class LogGuardStatusTest < Minitest::Test
     assert_includes result.output, "max timestamp: (none)"
   end
 
+  def test_status_omits_feedback_log_body_values
+    create_logs_database
+    sqlite3(<<~SQL)
+      INSERT INTO logs (ts, ts_nanos, level, target, feedback_log_body, estimated_bytes)
+      VALUES (10, 7, 'INFO', 'test', 'secret body must stay hidden', 0);
+    SQL
+
+    result = CodexSsdFix::LogGuardStatus.new(codex_home: @home, runner: @runner).report
+
+    refute_includes result.output, "secret body must stay hidden"
+    refute_includes result.output, "feedback_log_body"
+    assert_includes result.output, "row count: 1"
+  end
+
+  def test_status_on_guarded_database_omits_feedback_log_body_values
+    create_logs_database
+    sqlite3(<<~SQL)
+      INSERT INTO logs (ts, ts_nanos, level, target, feedback_log_body, estimated_bytes)
+      VALUES (10, 7, 'INFO', 'test', 'guarded secret body', 0);
+    SQL
+    CodexSsdFix::LogGuard.new(codex_home: @home, runner: @runner).apply("trace")
+
+    result = CodexSsdFix::LogGuardStatus.new(codex_home: @home, runner: @runner).report
+
+    refute_includes result.output, "guarded secret body"
+    refute_includes result.output, "feedback_log_body"
+    assert_includes result.output, "guard: trace"
+  end
+
   def test_missing_database_fails_without_creating_files
     error = assert_raises(CodexSsdFix::LogGuardStatus::Error) do
       CodexSsdFix::LogGuardStatus.new(codex_home: @home, runner: @runner).report

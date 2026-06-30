@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require "codex_ssd_fix/errors"
+
 module CodexSsdFix
   class CLI
     COMMANDS = {
@@ -9,9 +11,12 @@ module CodexSsdFix
       "doctor" => nil
     }.freeze
 
-    def initialize(stdout: $stdout, stderr: $stderr)
+    def initialize(stdout: $stdout, stderr: $stderr, runner: nil, filesystem: File, fileutils: nil)
       @stdout = stdout
       @stderr = stderr
+      @runner = runner
+      @filesystem = filesystem
+      @fileutils = fileutils
     end
 
     def run(argv)
@@ -20,10 +25,10 @@ module CodexSsdFix
       case command
       when "help", "-h", "--help"
         print_help
-        0
+        Errors::SUCCESS
       when "doctor"
         require "codex_ssd_fix/doctor"
-        result = Doctor.new.run
+        result = Doctor.new(runner: command_runner).run
         @stdout.write result.output
         result.exit_status
       when "env"
@@ -33,12 +38,9 @@ module CodexSsdFix
       when "ramdisk"
         handle_ramdisk(argv.drop(1))
       when *COMMANDS.keys
-        @stdout.puts "#{command}: not implemented yet"
-        0
+        usage_error("#{command}: missing action", "usage: codex-ssd-fix #{command} #{COMMANDS.fetch(command)}")
       else
-        @stderr.puts "unknown command: #{command}"
-        @stderr.puts "run `codex-ssd-fix help` for usage"
-        1
+        usage_error("unknown command: #{command}", "run `codex-ssd-fix help` for usage")
       end
     end
 
@@ -53,19 +55,26 @@ module CodexSsdFix
         name: optional_value(argv, "--name"),
         mount_point: optional_value(argv, "--mount-point")
       )
-      result = EnvGuide.new(ramdisk: Ramdisk.new(config: config)).run
+      result = EnvGuide.new(
+        ramdisk: Ramdisk.new(
+          config: config,
+          runner: command_runner,
+          filesystem: @filesystem,
+          fileutils: @fileutils || FileUtils
+        )
+      ).run
       @stdout.write result.output
       result.exit_status
-    rescue ArgumentError, CommandRunner::Error, Ramdisk::Error => e
-      @stderr.puts e.message
-      1
+    rescue ArgumentError, Errors::UsageError => e
+      usage_error(e.message)
+    rescue CommandRunner::Error, Ramdisk::Error => e
+      runtime_failure(e.message)
     end
 
     def handle_guard(argv)
       action = argv.first
       unless %w[apply status remove].include?(action)
-        @stdout.puts "guard: not implemented yet"
-        return 0
+        return usage_error("invalid guard action: #{action || "(missing)"}", "usage: codex-ssd-fix guard apply|status|remove")
       end
 
       require "codex_ssd_fix/codex_home"
@@ -75,27 +84,28 @@ module CodexSsdFix
       codex_home = CodexHome.resolve(argv: argv)
 
       if action == "status"
-        result = LogGuardStatus.new(codex_home: codex_home).report
+        result = LogGuardStatus.new(codex_home: codex_home, runner: command_runner).report
         @stdout.write result.output
         return result.exit_status
       end
 
       require "codex_ssd_fix/log_guard"
       if action == "remove"
-        result = LogGuard.new(codex_home: codex_home).remove
+        result = LogGuard.new(codex_home: codex_home, runner: command_runner).remove
         @stdout.puts "backup: #{result.backup_path}"
         @stdout.puts "guard remove: removed tool-owned triggers"
-        return 0
+        return Errors::SUCCESS
       end
 
       mode = option_value(argv, "--mode")
-      result = LogGuard.new(codex_home: codex_home).apply(mode)
+      result = LogGuard.new(codex_home: codex_home, runner: command_runner).apply(mode)
       @stdout.puts "backup: #{result.backup_path}"
       @stdout.puts "guard apply: installed #{result.mode} mode"
-      0
-    rescue ArgumentError, Backup::Error, CommandRunner::Error, LogGuardStatus::Error => e
-      @stderr.puts e.message
-      1
+      Errors::SUCCESS
+    rescue ArgumentError, Errors::UsageError => e
+      usage_error(e.message)
+    rescue Backup::Error, CommandRunner::Error, LogGuardStatus::Error => e
+      runtime_failure(e.message)
     end
 
     def option_value(argv, option)
@@ -110,8 +120,7 @@ module CodexSsdFix
     def handle_ramdisk(argv)
       action = argv.first
       unless %w[mount status unmount].include?(action)
-        @stdout.puts "ramdisk: not implemented yet"
-        return 0
+        return usage_error("invalid ramdisk action: #{action || "(missing)"}", "usage: codex-ssd-fix ramdisk mount|status|unmount")
       end
 
       require "codex_ssd_fix/ramdisk"
@@ -120,7 +129,12 @@ module CodexSsdFix
         name: optional_value(argv, "--name"),
         mount_point: optional_value(argv, "--mount-point")
       )
-      ramdisk = Ramdisk.new(config: config)
+      ramdisk = Ramdisk.new(
+        config: config,
+        runner: command_runner,
+        filesystem: @filesystem,
+        fileutils: @fileutils || FileUtils
+      )
 
       if action == "mount"
         result = ramdisk.mount
@@ -129,7 +143,7 @@ module CodexSsdFix
         @stdout.puts "device: #{result.device}" if result.device
         @stdout.puts "scratch root: #{result.config.scratch_root}"
         result.scratch_paths.each { |path| @stdout.puts "scratch path: #{path}" }
-        return 0
+        return Errors::SUCCESS
       end
 
       if action == "status"
@@ -137,16 +151,17 @@ module CodexSsdFix
         @stdout.puts "ramdisk status: #{result.mounted? ? "mounted" : "not mounted"}"
         @stdout.puts "mount point: #{result.config.mount_point}"
         result.scratch_paths.each { |path| @stdout.puts "scratch path: #{path}" }
-        return 0
+        return Errors::SUCCESS
       end
 
       result = ramdisk.unmount
       @stdout.puts "ramdisk unmount: #{result.unmounted? ? "unmounted" : "already unmounted"}"
       @stdout.puts "mount point: #{result.config.mount_point}"
-      0
-    rescue ArgumentError, CommandRunner::Error, Ramdisk::Error => e
-      @stderr.puts e.message
-      1
+      Errors::SUCCESS
+    rescue ArgumentError, Errors::UsageError => e
+      usage_error(e.message)
+    rescue CommandRunner::Error, Ramdisk::Error => e
+      runtime_failure(e.message)
     end
 
     def optional_value(argv, option)
@@ -157,6 +172,23 @@ module CodexSsdFix
 
     def option_supplied?(argv, option)
       argv.any? { |arg| arg == option || arg.start_with?("#{option}=") }
+    end
+
+    def command_runner
+      @runner ||= begin
+        require "codex_ssd_fix/command_runner"
+        CommandRunner.new
+      end
+    end
+
+    def usage_error(*lines)
+      lines.each { |line| @stderr.puts line }
+      Errors::USAGE_ERROR
+    end
+
+    def runtime_failure(message)
+      @stderr.puts message
+      Errors::RUNTIME_FAILURE
     end
 
     def print_help

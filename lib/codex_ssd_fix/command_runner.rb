@@ -17,9 +17,15 @@ module CodexSsdFix
         return nil if success?
 
         message = +"#{executable} failed with exit status #{exit_status}"
-        clean_stderr = stderr.to_s.strip
-        message << ": #{clean_stderr}" unless clean_stderr.empty?
+        clean_stderr = stderr.to_s.lines.map(&:strip).find { |line| !line.empty? }
+        message << ": #{truncate(clean_stderr)}" if clean_stderr
         message
+      end
+
+      def truncate(text)
+        return text if text.length <= 240
+
+        "#{text[0, 237]}..."
       end
     end
 
