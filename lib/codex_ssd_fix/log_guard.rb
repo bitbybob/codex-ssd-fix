@@ -10,6 +10,7 @@ module CodexSsdFix
     TRACE_TRIGGER = "codex_ssd_fix_block_trace_logs"
     MODES = %w[all trace].freeze
     ApplyResult = Struct.new(:mode, :backup_path, keyword_init: true)
+    RemoveResult = Struct.new(:backup_path, keyword_init: true)
 
     def initialize(codex_home:, runner: CommandRunner.new, backup: Backup.new(codex_home: codex_home))
       @codex_home = codex_home
@@ -24,6 +25,12 @@ module CodexSsdFix
       ApplyResult.new(mode: mode, backup_path: backup_result.path)
     end
 
+    def remove
+      backup_result = @backup.create
+      @runner.run!(["sqlite3", @codex_home.database_path, remove_sql])
+      RemoveResult.new(backup_path: backup_result.path)
+    end
+
     def apply_sql(mode)
       mode = normalize_mode(mode)
       trigger_sql = mode == "all" ? all_trigger_sql : trace_trigger_sql
@@ -35,6 +42,16 @@ module CodexSsdFix
         DROP TRIGGER IF EXISTS #{TRACE_TRIGGER};
         #{trigger_sql}
         COMMIT;
+      SQL
+    end
+
+    def remove_sql
+      <<~SQL
+        BEGIN;
+        DROP TRIGGER IF EXISTS #{ALL_TRIGGER};
+        DROP TRIGGER IF EXISTS #{TRACE_TRIGGER};
+        COMMIT;
+        PRAGMA wal_checkpoint(TRUNCATE);
       SQL
     end
 

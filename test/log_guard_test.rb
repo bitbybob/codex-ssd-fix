@@ -82,6 +82,67 @@ class LogGuardTest < Minitest::Test
     assert_empty runner.commands
   end
 
+  def test_remove_drops_all_mode_trigger
+    @guard.apply("all")
+
+    result = @guard.remove
+
+    assert File.directory?(result.backup_path)
+    assert_empty tool_triggers
+  end
+
+  def test_remove_drops_trace_mode_trigger
+    @guard.apply("trace")
+
+    @guard.remove
+
+    assert_empty tool_triggers
+  end
+
+  def test_remove_preserves_unrelated_trigger_and_rows
+    @guard.apply("trace")
+    create_unrelated_trigger
+    insert_log("INFO")
+
+    @guard.remove
+
+    assert_empty tool_triggers
+    assert_equal ["user_keep_logs"], all_triggers
+    assert_equal 1, log_count
+  end
+
+  def test_remove_creates_backup_before_mutation
+    @guard.apply("all")
+    runner = RecordingRunner.new
+    backup = RecordingBackup.new("/tmp/backup")
+    guard = CodexSsdFix::LogGuard.new(codex_home: @home, runner: runner, backup: backup)
+
+    result = guard.remove
+
+    assert_equal "/tmp/backup", result.backup_path
+    assert backup.created
+    assert_equal 1, runner.commands.length
+    assert_includes runner.commands.first.last, "DROP TRIGGER IF EXISTS #{CodexSsdFix::LogGuard::ALL_TRIGGER}"
+  end
+
+  def test_remove_does_not_mutate_when_backup_fails
+    runner = RecordingRunner.new
+    backup = FailingBackup.new
+    guard = CodexSsdFix::LogGuard.new(codex_home: @home, runner: runner, backup: backup)
+
+    error = assert_raises(RuntimeError) { guard.remove }
+
+    assert_equal "backup failed", error.message
+    assert_empty runner.commands
+  end
+
+  def test_remove_sql_checkpoints_wal_and_does_not_vacuum
+    sql = @guard.remove_sql
+
+    assert_includes sql, "PRAGMA wal_checkpoint(TRUNCATE);"
+    refute_includes sql.upcase, "VACUUM"
+  end
+
   private
 
   class RecordingRunner
@@ -99,6 +160,21 @@ class LogGuardTest < Minitest::Test
   class FailingBackup
     def create
       raise "backup failed"
+    end
+  end
+
+  class RecordingBackup
+    Result = Struct.new(:path)
+    attr_reader :created
+
+    def initialize(path)
+      @path = path
+      @created = false
+    end
+
+    def create
+      @created = true
+      Result.new(@path)
     end
   end
 
@@ -123,6 +199,26 @@ class LogGuardTest < Minitest::Test
       FROM sqlite_schema
       WHERE type = 'trigger' AND name LIKE 'codex_ssd_fix_%'
       ORDER BY name;
+    SQL
+  end
+
+  def all_triggers
+    sqlite3(<<~SQL).lines.map(&:strip)
+      SELECT name
+      FROM sqlite_schema
+      WHERE type = 'trigger'
+      ORDER BY name;
+    SQL
+  end
+
+  def create_unrelated_trigger
+    sqlite3(<<~SQL)
+      CREATE TRIGGER user_keep_logs
+      BEFORE INSERT ON logs
+      WHEN NEW.level = 'DEBUG'
+      BEGIN
+        SELECT RAISE(IGNORE);
+      END;
     SQL
   end
 

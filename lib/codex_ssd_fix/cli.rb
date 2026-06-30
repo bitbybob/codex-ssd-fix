@@ -42,7 +42,7 @@ module CodexSsdFix
 
     def handle_guard(argv)
       action = argv.first
-      unless %w[apply status].include?(action)
+      unless %w[apply status remove].include?(action)
         @stdout.puts "guard: not implemented yet"
         return 0
       end
@@ -60,6 +60,13 @@ module CodexSsdFix
       end
 
       require "codex_ssd_fix/log_guard"
+      if action == "remove"
+        result = LogGuard.new(codex_home: codex_home).remove
+        @stdout.puts "backup: #{result.backup_path}"
+        @stdout.puts "guard remove: removed tool-owned triggers"
+        return 0
+      end
+
       mode = option_value(argv, "--mode")
       result = LogGuard.new(codex_home: codex_home).apply(mode)
       @stdout.puts "backup: #{result.backup_path}"
