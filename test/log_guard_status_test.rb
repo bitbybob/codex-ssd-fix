@@ -1,8 +1,6 @@
 # frozen_string_literal: true
 
-require "fileutils"
-require "minitest/autorun"
-require "tmpdir"
+require "test_helper"
 require "codex_ssd_fix/codex_home"
 require "codex_ssd_fix/command_runner"
 require "codex_ssd_fix/log_guard"
@@ -10,13 +8,9 @@ require "codex_ssd_fix/log_guard_status"
 
 class LogGuardStatusTest < Minitest::Test
   def setup
-    @tmpdir = Dir.mktmpdir("codex-ssd-fix")
+    @tmpdir = make_tempdir
     @home = CodexSsdFix::CodexHome.new(@tmpdir)
     @runner = CodexSsdFix::CommandRunner.new
-  end
-
-  def teardown
-    FileUtils.remove_entry(@tmpdir) if @tmpdir
   end
 
   def test_status_on_guarded_database
@@ -63,7 +57,7 @@ class LogGuardStatusTest < Minitest::Test
 
   def test_status_uses_readonly_sqlite
     create_logs_database
-    runner = RecordingRunner.new(stdout: "0||\n")
+    runner = CodexSsdFix::RecordingCommandRunner.new(stdout: "0||\n")
 
     CodexSsdFix::LogGuardStatus.new(codex_home: @home, runner: runner).report
 
@@ -71,22 +65,6 @@ class LogGuardStatusTest < Minitest::Test
   end
 
   private
-
-  class RecordingRunner
-    attr_reader :commands
-
-    def initialize(stdout:)
-      @stdout = stdout
-      @commands = []
-    end
-
-    def run!(argv)
-      @commands << argv
-      Result.new(@stdout)
-    end
-
-    Result = Struct.new(:stdout)
-  end
 
   def create_logs_database
     sqlite3(<<~SQL)

@@ -1,7 +1,7 @@
 # frozen_string_literal: true
 
 require "stringio"
-require "minitest/autorun"
+require "test_helper"
 require "codex_ssd_fix/cli"
 
 class CLITest < Minitest::Test

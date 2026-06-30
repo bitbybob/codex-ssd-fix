@@ -1,21 +1,15 @@
 # frozen_string_literal: true
 
-require "fileutils"
-require "minitest/autorun"
-require "tmpdir"
+require "test_helper"
 require "codex_ssd_fix/codex_home"
 require "codex_ssd_fix/command_runner"
 require "codex_ssd_fix/log_guard"
 
 class LogGuardTest < Minitest::Test
   def setup
-    @tmpdir = Dir.mktmpdir("codex-ssd-fix")
+    @tmpdir = make_tempdir
     @home = CodexSsdFix::CodexHome.new(@tmpdir)
     @guard = CodexSsdFix::LogGuard.new(codex_home: @home, runner: CodexSsdFix::CommandRunner.new)
-  end
-
-  def teardown
-    FileUtils.remove_entry(@tmpdir) if @tmpdir
   end
 
   def test_all_mode_blocks_info_insert_and_is_idempotent
@@ -72,7 +66,7 @@ class LogGuardTest < Minitest::Test
   end
 
   def test_mutation_is_not_invoked_when_backup_fails
-    runner = RecordingRunner.new
+    runner = CodexSsdFix::RecordingCommandRunner.new
     backup = FailingBackup.new
     guard = CodexSsdFix::LogGuard.new(codex_home: @home, runner: runner, backup: backup)
 
@@ -113,7 +107,7 @@ class LogGuardTest < Minitest::Test
 
   def test_remove_creates_backup_before_mutation
     @guard.apply("all")
-    runner = RecordingRunner.new
+    runner = CodexSsdFix::RecordingCommandRunner.new
     backup = RecordingBackup.new("/tmp/backup")
     guard = CodexSsdFix::LogGuard.new(codex_home: @home, runner: runner, backup: backup)
 
@@ -126,7 +120,7 @@ class LogGuardTest < Minitest::Test
   end
 
   def test_remove_does_not_mutate_when_backup_fails
-    runner = RecordingRunner.new
+    runner = CodexSsdFix::RecordingCommandRunner.new
     backup = FailingBackup.new
     guard = CodexSsdFix::LogGuard.new(codex_home: @home, runner: runner, backup: backup)
 
@@ -144,18 +138,6 @@ class LogGuardTest < Minitest::Test
   end
 
   private
-
-  class RecordingRunner
-    attr_reader :commands
-
-    def initialize
-      @commands = []
-    end
-
-    def run!(argv)
-      @commands << argv
-    end
-  end
 
   class FailingBackup
     def create

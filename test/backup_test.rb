@@ -1,20 +1,14 @@
 # frozen_string_literal: true
 
-require "fileutils"
-require "minitest/autorun"
-require "tmpdir"
+require "test_helper"
 require "codex_ssd_fix/backup"
 require "codex_ssd_fix/codex_home"
 
 class BackupTest < Minitest::Test
   def setup
-    @tmpdir = Dir.mktmpdir("codex-ssd-fix")
+    @tmpdir = make_tempdir
     @home = CodexSsdFix::CodexHome.new(@tmpdir)
     @clock = -> { Time.utc(2026, 6, 30, 17, 41, 5, 123456) }
-  end
-
-  def teardown
-    FileUtils.remove_entry(@tmpdir) if @tmpdir
   end
 
   def test_backup_copies_database_and_sidecars_when_present
@@ -70,9 +64,5 @@ class BackupTest < Minitest::Test
     def cp(_source, _destination)
       raise Errno::EACCES, "copy denied"
     end
-  end
-
-  def write_file(path, body)
-    File.write(path, body)
   end
 end
