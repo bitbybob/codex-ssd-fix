@@ -1,0 +1,99 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+repo_url="${CODEX_SSD_FIX_REPO_URL:-}"
+install_dir="${CODEX_SSD_FIX_DIR:-"$HOME/.local/share/codex-ssd-fix"}"
+bin_path="$install_dir/bin/codex-ssd-fix"
+
+say() {
+  printf '%s\n' "$*"
+}
+
+fail() {
+  printf 'error: %s\n' "$*" >&2
+  exit 1
+}
+
+ask_yes_no() {
+  prompt="$1"
+  default="$2"
+  if [ "$default" = "yes" ]; then
+    suffix="[Y/n]"
+  else
+    suffix="[y/N]"
+  fi
+
+  printf '%s %s ' "$prompt" "$suffix"
+  read -r reply
+  case "$reply" in
+    y|Y|yes|YES) return 0 ;;
+    n|N|no|NO) return 1 ;;
+    "") [ "$default" = "yes" ] ;;
+    *) return 1 ;;
+  esac
+}
+
+require_command() {
+  command -v "$1" >/dev/null 2>&1 || fail "$1 is required"
+}
+
+case "$(uname -s)" in
+  Darwin) ;;
+  *) fail "codex-ssd-fix setup supports macOS only" ;;
+esac
+
+require_command ruby
+require_command git
+require_command sqlite3
+require_command hdiutil
+require_command diskutil
+
+if [ -z "$repo_url" ]; then
+  fail "set CODEX_SSD_FIX_REPO_URL to the git URL for this repository"
+fi
+
+say "install dir: $install_dir"
+
+if [ -d "$install_dir/.git" ]; then
+  say "updating existing clone"
+  git -C "$install_dir" pull --ff-only
+elif [ -e "$install_dir" ]; then
+  fail "$install_dir exists but is not a git clone"
+else
+  mkdir -p "$(dirname "$install_dir")"
+  git clone "$repo_url" "$install_dir"
+fi
+
+cd "$install_dir"
+
+say
+say "running doctor"
+"$bin_path" doctor
+
+say
+if ask_yes_no "apply trace log guard now?" "yes"; then
+  "$bin_path" guard apply --mode trace
+else
+  say "skipped guard apply"
+fi
+
+say
+if ask_yes_no "mount RAM disk now?" "yes"; then
+  "$bin_path" ramdisk mount
+  say
+  say "for this shell, run:"
+  say "eval \"\$($bin_path env)\""
+else
+  say "skipped RAM disk mount"
+fi
+
+say
+say "status:"
+"$bin_path" guard status || true
+"$bin_path" ramdisk status || true
+
+say
+say "next:"
+say "  $bin_path help"
+say "  $bin_path guard remove"
+say "  $bin_path ramdisk unmount"
