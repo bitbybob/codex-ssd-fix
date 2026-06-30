@@ -28,6 +28,8 @@ module CodexSsdFix
         result.exit_status
       when "guard"
         handle_guard(argv.drop(1))
+      when "ramdisk"
+        handle_ramdisk(argv.drop(1))
       when *COMMANDS.keys
         @stdout.puts "#{command}: not implemented yet"
         0
@@ -84,6 +86,39 @@ module CodexSsdFix
       end
 
       nil
+    end
+
+    def handle_ramdisk(argv)
+      action = argv.first
+      unless %w[mount status unmount].include?(action)
+        @stdout.puts "ramdisk: not implemented yet"
+        return 0
+      end
+
+      if action == "mount"
+        require "codex_ssd_fix/ramdisk"
+        Ramdisk.build(
+          size_gib: optional_value(argv, "--size-gib"),
+          name: optional_value(argv, "--name"),
+          mount_point: optional_value(argv, "--mount-point")
+        )
+      end
+
+      @stdout.puts "ramdisk #{action}: not implemented yet"
+      0
+    rescue ArgumentError => e
+      @stderr.puts e.message
+      1
+    end
+
+    def optional_value(argv, option)
+      return nil unless option_supplied?(argv, option)
+
+      option_value(argv, option) || ""
+    end
+
+    def option_supplied?(argv, option)
+      argv.any? { |arg| arg == option || arg.start_with?("#{option}=") }
     end
 
     def print_help
