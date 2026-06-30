@@ -85,7 +85,7 @@ RAM disk data is volatile. Keep source code, important outputs, credentials, and
 
 `guard remove` removes only tool-owned SQLite triggers and creates a backup first.
 
-Manual restore: quit Codex, copy backed-up `logs_2.sqlite` and matching sidecars from `~/.codex/log-db-backups/<timestamp>/` back into `~/.codex/`, then confirm Codex starts. More detail: [docs/safety.md](docs/safety.md).
+Manual restore: quit Codex, copy backed-up `logs_2.sqlite` and matching sidecars from `~/.codex/log-db-backups/<timestamp>/` back into `~/.codex/`, then confirm Codex starts.
 
 ## Tests
 
