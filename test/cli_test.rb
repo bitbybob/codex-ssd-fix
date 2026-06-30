@@ -43,15 +43,15 @@ class CLITest < Minitest::Test
     assert_equal "size-gib must be a positive integer\n", stderr.string
   end
 
-  def test_ramdisk_mount_accepts_default_model_options
+  def test_ramdisk_unknown_action_still_uses_placeholder
     stdout = StringIO.new
     stderr = StringIO.new
 
-    status = CodexSsdFix::CLI.new(stdout: stdout, stderr: stderr).run(["ramdisk", "status"])
+    status = CodexSsdFix::CLI.new(stdout: stdout, stderr: stderr).run(["ramdisk", "nope"])
 
     assert_equal 0, status
     assert_empty stderr.string
-    assert_equal "ramdisk status: not implemented yet\n", stdout.string
+    assert_equal "ramdisk: not implemented yet\n", stdout.string
   end
 
   def test_ramdisk_mount_rejects_missing_size_value

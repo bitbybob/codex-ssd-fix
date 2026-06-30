@@ -95,14 +95,16 @@ module CodexSsdFix
         return 0
       end
 
+      require "codex_ssd_fix/ramdisk"
+      config = Ramdisk.build(
+        size_gib: optional_value(argv, "--size-gib"),
+        name: optional_value(argv, "--name"),
+        mount_point: optional_value(argv, "--mount-point")
+      )
+      ramdisk = Ramdisk.new(config: config)
+
       if action == "mount"
-        require "codex_ssd_fix/ramdisk"
-        config = Ramdisk.build(
-          size_gib: optional_value(argv, "--size-gib"),
-          name: optional_value(argv, "--name"),
-          mount_point: optional_value(argv, "--mount-point")
-        )
-        result = Ramdisk.new(config: config).mount
+        result = ramdisk.mount
         @stdout.puts "ramdisk mount: #{result.mounted? ? "mounted" : "already mounted"}"
         @stdout.puts "mount point: #{result.config.mount_point}"
         @stdout.puts "device: #{result.device}" if result.device
@@ -111,7 +113,17 @@ module CodexSsdFix
         return 0
       end
 
-      @stdout.puts "ramdisk #{action}: not implemented yet"
+      if action == "status"
+        result = ramdisk.status
+        @stdout.puts "ramdisk status: #{result.mounted? ? "mounted" : "not mounted"}"
+        @stdout.puts "mount point: #{result.config.mount_point}"
+        result.scratch_paths.each { |path| @stdout.puts "scratch path: #{path}" }
+        return 0
+      end
+
+      result = ramdisk.unmount
+      @stdout.puts "ramdisk unmount: #{result.unmounted? ? "unmounted" : "already unmounted"}"
+      @stdout.puts "mount point: #{result.config.mount_point}"
       0
     rescue ArgumentError, CommandRunner::Error, Ramdisk::Error => e
       @stderr.puts e.message

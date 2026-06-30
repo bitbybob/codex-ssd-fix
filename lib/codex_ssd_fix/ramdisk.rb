@@ -21,6 +21,16 @@ module CodexSsdFix
         mounted
       end
     end
+    StatusResult = Struct.new(:config, :mounted, :mount_output, :df_output, :scratch_paths, keyword_init: true) do
+      def mounted?
+        mounted
+      end
+    end
+    UnmountResult = Struct.new(:config, :unmounted, keyword_init: true) do
+      def unmounted?
+        unmounted
+      end
+    end
 
     Config = Struct.new(:size_gib, :sectors, :name, :mount_point, keyword_init: true) do
       def ram_url
@@ -66,6 +76,32 @@ module CodexSsdFix
       raise Error, e.message
     end
 
+    def status
+      mount_output = @runner.run!(["mount"]).stdout
+      df_output = @runner.run!(["df", "-h"]).stdout
+      mounted = self.class.mounted_output?(mount_output, @config.mount_point) &&
+                self.class.df_output?(df_output, @config.mount_point)
+
+      StatusResult.new(
+        config: @config,
+        mounted: mounted,
+        mount_output: mount_output,
+        df_output: df_output,
+        scratch_paths: mounted ? @config.scratch_paths : []
+      )
+    rescue CommandRunner::Error => e
+      raise Error, e.message
+    end
+
+    def unmount
+      return UnmountResult.new(config: @config, unmounted: false) unless status.mounted?
+
+      @runner.run!(["diskutil", "eject", @config.mount_point])
+      UnmountResult.new(config: @config, unmounted: true)
+    rescue CommandRunner::Error => e
+      raise Error, e.message
+    end
+
     def self.build(size_gib: nil, name: nil, mount_point: nil)
       size = parse_size_gib(size_gib)
 
@@ -105,6 +141,14 @@ module CodexSsdFix
       end
 
       raise Error, "could not parse RAM disk device from hdiutil output"
+    end
+
+    def self.mounted_output?(output, mount_point)
+      output.to_s.each_line.any? { |line| line.include?(" on #{mount_point} ") }
+    end
+
+    def self.df_output?(output, mount_point)
+      output.to_s.each_line.any? { |line| line.chomp == mount_point || line.chomp.end_with?(" #{mount_point}") }
     end
 
     def mounted?

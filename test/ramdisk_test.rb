@@ -104,6 +104,64 @@ class RamdiskTest < Minitest::Test
     assert_equal "could not parse RAM disk device from hdiutil output", error.message
   end
 
+  def test_status_reports_mounted_and_scratch_paths_from_mount_and_df
+    config = CodexSsdFix::Ramdisk.build
+    runner = ScriptedRunner.new(
+      ["mount"] => "/dev/disk9s1 on /Volumes/CodexRAMFix (hfs, local)\n",
+      ["df", "-h"] => "Filesystem Size Used Avail Capacity Mounted on\n/dev/disk9s1 2.0Gi 1Mi 2.0Gi 1% /Volumes/CodexRAMFix\n"
+    )
+
+    result = CodexSsdFix::Ramdisk.new(config: config, runner: runner).status
+
+    assert result.mounted?
+    assert_equal config.scratch_paths, result.scratch_paths
+    assert_equal [["mount"], ["df", "-h"]], runner.commands
+  end
+
+  def test_status_reports_not_mounted_when_outputs_do_not_include_mount_point
+    config = CodexSsdFix::Ramdisk.build
+    runner = ScriptedRunner.new(
+      ["mount"] => "/dev/disk1s1 on / (apfs, local)\n",
+      ["df", "-h"] => "Filesystem Size Used Avail Capacity Mounted on\n/dev/disk1s1 100Gi 50Gi 50Gi 50% /\n"
+    )
+
+    result = CodexSsdFix::Ramdisk.new(config: config, runner: runner).status
+
+    refute result.mounted?
+    assert_empty result.scratch_paths
+  end
+
+  def test_unmount_ejects_mount_point_when_mounted
+    config = CodexSsdFix::Ramdisk.build
+    runner = ScriptedRunner.new(
+      ["mount"] => "/dev/disk9s1 on /Volumes/CodexRAMFix (hfs, local)\n",
+      ["df", "-h"] => "Filesystem Size Used Avail Capacity Mounted on\n/dev/disk9s1 2.0Gi 1Mi 2.0Gi 1% /Volumes/CodexRAMFix\n",
+      ["diskutil", "eject", "/Volumes/CodexRAMFix"] => "Disk ejected\n"
+    )
+
+    result = CodexSsdFix::Ramdisk.new(config: config, runner: runner).unmount
+
+    assert result.unmounted?
+    assert_equal [
+      ["mount"],
+      ["df", "-h"],
+      ["diskutil", "eject", "/Volumes/CodexRAMFix"]
+    ], runner.commands
+  end
+
+  def test_unmount_succeeds_without_eject_when_already_unmounted
+    config = CodexSsdFix::Ramdisk.build
+    runner = ScriptedRunner.new(
+      ["mount"] => "/dev/disk1s1 on / (apfs, local)\n",
+      ["df", "-h"] => "Filesystem Size Used Avail Capacity Mounted on\n/dev/disk1s1 100Gi 50Gi 50Gi 50% /\n"
+    )
+
+    result = CodexSsdFix::Ramdisk.new(config: config, runner: runner).unmount
+
+    refute result.unmounted?
+    assert_equal [["mount"], ["df", "-h"]], runner.commands
+  end
+
   class RecordingRunner
     attr_reader :commands
 
@@ -117,6 +175,22 @@ class RamdiskTest < Minitest::Test
     def run!(argv)
       @commands << argv
       Result.new(@stdout)
+    end
+  end
+
+  class ScriptedRunner
+    attr_reader :commands
+
+    Result = Struct.new(:stdout)
+
+    def initialize(responses)
+      @responses = responses
+      @commands = []
+    end
+
+    def run!(argv)
+      @commands << argv
+      Result.new(@responses.fetch(argv))
     end
   end
 
